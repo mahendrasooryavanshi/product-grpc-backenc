@@ -1,63 +1,100 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Product, ProductDocument } from './schema/product.schema';
-// import { Product, ProductDocument } from './product.schema';
+import { Injectable, Logger } from '@nestjs/common';
+import { ProductRepository } from './repository/product.repository';
+import { CreateProductDto } from './dto/create-product.dto';
+import { success } from 'src/common/response.helper';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { MongoProduct } from 'src/common/interfaces/productList.interface';
 
 @Injectable()
 export class ProductService {
-  constructor(
-    @InjectModel(Product.name)
-    private productModel: Model<ProductDocument>,
-  ) { }
+  private readonly logger = new Logger(ProductService.name);
 
-  async createProduct(data: any) {
-    const product = new this.productModel({
-      name: data.name,
-      price: data.price,
-      stock: data.stock,
-      description: data.description ?? '',
-    });
+  constructor(private readonly repo: ProductRepository) { }
 
-    const result = await product.save();
-    console.log("product data", result)
-    return result
+  // ------------------ CREATE PRODUCT ------------------
+  async createProduct(dto: CreateProductDto) {
+    this.logger.debug(`CreateProduct | Payload: ${JSON.stringify(dto)}`);
+    const product = await this.repo.create(dto);
+    return success(product, 'Product created successfully');
   }
 
+  // ------------------ GET PRODUCT BY ID ------------------
   async getProduct(id: string) {
-    return this.productModel.findById(id);
+    this.logger.debug(`GetProduct | ID: ${id}`);
+
+    const p = await this.repo.findById(id) as MongoProduct;
+    if (!p) return fail('Product not found');
+
+    return success({
+      id: p._id.toString(),   // 👉 yahi se ID milegi
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+      description: p.description,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt
+    }, 'Product fetched successfully');
   }
 
+  // ------------------ LIST ALL PRODUCTS ------------------
   async listProducts() {
-    return this.productModel.find().lean().exec();;
+    this.logger.debug(`ListProducts`);
+    const products = await this.repo.findAll() as MongoProduct[];
+
+    const formatted = products.map(p => ({
+      id: p._id.toString(),
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+      description: p.description,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    }));
+
+    if (!formatted.length) {
+      return success([], 'No products found');
+    }
+    return success(formatted, 'Products fetched successfully');
   }
 
+  // ------------------ REDUCE STOCK (Used by Orders MS) ------------------
   async reduceStock(productId: string, qty: number) {
-    const product = await this.productModel.findById(productId);
+    this.logger.debug(`ReduceStock | ID: ${productId} | Qty: ${qty}`);
 
-    if (!product) return false;
-    if (product.stock < qty) return false;
+    const product = await this.repo.findById(productId);
+    if (!product) return fail('Product not found');
 
-    product.stock -= qty;
-    await product.save();
+    if (product.stock < qty) return fail('Insufficient stock');
 
-    return true;
+    const updatedStock = product.stock - qty;
+    await this.repo.update(productId, { stock: updatedStock });
+
+    return success(true, 'Stock reduced successfully');
   }
 
-  async updateProduct(id: string, dto: any) {
-    const updated = await this.productModel.findByIdAndUpdate(
-      id,
-      { $set: dto },
-      {
-        new: true,            // return updated document
-        runValidators: true,  // ensure DTO validation rules apply
-      }
+  // ------------------ UPDATE PRODUCT ------------------
+  async updateProduct(id: string, dto: UpdateProductDto) {
+    this.logger.debug(
+      `UpdateProduct | ID: ${id} | Payload: ${JSON.stringify(dto)}`
     );
 
-    if (!updated) {
-      throw new Error(`Product with id ${id} not found`);
-    }
+    const updated = await this.repo.update(id, dto);
 
-    return updated;
+    if (!updated) return fail('Product not found');
+
+    return success(updated, 'Product updated successfully');
+  }
+
+  // ------------------ DELETE PRODUCT ------------------
+  async deleteProduct(id: string) {
+    this.logger.debug(`DeleteProduct | ID: ${id}`);
+
+    const deletedCount = await this.repo.delete(id);
+
+    if (deletedCount === 0) return fail('Product not found');
+
+    return success(true, 'Product deleted successfully');
   }
 }
+
+

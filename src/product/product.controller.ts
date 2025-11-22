@@ -1,42 +1,73 @@
-import { Controller, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, UsePipes, ValidationPipe, Logger } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { ProductService } from './product.service';
-
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true }))
 @Controller('product')
 export class ProductController {
+  private readonly logger = new Logger(ProductController.name);
+
   constructor(private readonly productService: ProductService) { }
 
+  // ------------------ CREATE PRODUCT ------------------
   @GrpcMethod('ProductService', 'CreateProduct')
-  createProduct(data: any) {
-    // data will match CreateProductDto
-    console.log('DATA RECEIVED IN GRPC:', data);
-    return this.productService.createProduct(data);
+  async createProduct(data: { createProductRequest?: CreateProductDto } | CreateProductDto) {
+    const payload = this.unwrap(data);
+
+    this.logger.debug(`CreateProduct Request: ${JSON.stringify(payload)}`);
+
+    return await this.productService.createProduct(payload);
+
   }
 
+  // ------------------ GET PRODUCT ------------------
   @GrpcMethod('ProductService', 'GetProduct')
-  getProduct(data: any) {
-    return this.productService.getProduct(data.id);
+  async getProduct(data: { id: string }) {
+    this.logger.debug(`GetProduct Request: ${JSON.stringify(data)}`);
+
+    return await this.productService.getProduct(data.id);
   }
 
+  // ------------------ LIST PRODUCTS ------------------
   @GrpcMethod('ProductService', 'ListProducts')
   async listProducts() {
-    const products = await this.productService.listProducts();
-    const mapped = products.map((p) => ({
-      id: p._id.toString(),
-      name: p.name,
-      price: p.price,
-      stock: p.stock,
-      description: p.description,
-    }));
-
-    return { products: mapped };
+    this.logger.debug(`ListProducts Request`);
+    return await this.productService.listProducts();
   }
 
-  // ⭐ NEW UPDATE METHOD
+  // ------------------ UPDATE PRODUCT ------------------
   @GrpcMethod('ProductService', 'UpdateProduct')
-  updateProduct(data: any) {
-    return this.productService.updateProduct(data.id, data);
+  async updateProduct(data: { id: string; updateProductRequest?: UpdateProductDto } | any) {
+    const { id, ...rest } = this.unwrap(data);
+
+    this.logger.debug(`UpdateProduct Request: ID: ${id}, Body: ${JSON.stringify(rest)}`);
+
+    return await this.productService.updateProduct(id, rest);
+  }
+
+  // ------------------ DELETE PRODUCT ------------------
+  @GrpcMethod('ProductService', 'DeleteProduct')
+  async deleteProduct(data: { id: string }) {
+    this.logger.debug(`DeleteProduct Request: ${JSON.stringify(data)}`);
+    return await this.productService.deleteProduct(data.id);
+  }
+
+  // ------------------ G R P C   P A Y L O A D   F I X ------------------
+  /**
+   * Some gRPC servers wrap payloads like:
+   * { createProductRequest: {...} }
+   * { updateProductRequest: {...} }
+   * 
+   * This ensures your controller ALWAYS gets clean data.
+   */
+  private unwrap(data: any): any {
+    if (!data) return {};
+
+    const keys = Object.keys(data);
+    const wrapperKey = keys.find(k => k.toLowerCase().includes('request'));
+
+    return wrapperKey ? data[wrapperKey] : data;
   }
 }

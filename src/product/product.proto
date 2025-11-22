@@ -2,44 +2,67 @@ syntax = "proto3";
 
 package product;
 
+// ------------------ SERVICE ------------------------
 service ProductService {
-  rpc CreateProduct (CreateProductDto) returns (ProductResponse);
-  rpc GetProduct (GetProductDto) returns (ProductResponse);
-  rpc ListProducts (Empty) returns (ProductList);
-  // NEW UPDATE RPC
-  rpc UpdateProduct (UpdateProductDto) returns (ProductResponse);
+  rpc CreateProduct (CreateProductRequest) returns (ProductResponse);
+  rpc GetProduct (GetProductRequest) returns (ProductResponse);
+  rpc ListProducts (Empty) returns (ProductListResponse);
+  rpc UpdateProduct (UpdateProductRequest) returns (ProductResponse);
+  rpc DeleteProduct (DeleteProductRequest) returns (DeleteProductResponse);
 }
 
-message CreateProductDto {
+// ------------------ REQUEST DTOs ----------------------
+message CreateProductRequest {
   string name = 1;
   double price = 2;
   int32 stock = 3;
   string description = 4;
 }
 
-message GetProductDto {
+message GetProductRequest {
   string id = 1;
 }
 
+message UpdateProductRequest {
+  string id = 1;
+  string name = 2;
+  double price = 3;
+  int32 stock = 4;
+  string description = 5;
+}
+
+message DeleteProductRequest {
+  string id = 1;
+}
+
+// ------------------ RESPONSE DTOs ----------------------
 message ProductResponse {
+  bool success = 1;
+  string message = 2;
+  Product data = 3;
+}
+
+message ProductListResponse {
+  repeated Product data = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message DeleteProductResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ------------------ PRODUCT MODEL ----------------------
+message Product {
   string id = 1;
   string name = 2;
   double price = 3;
   int32 stock = 4;
   string description = 5;
+  string createdAt = 6;
+  string updatedAt = 7;
 }
 
-message ProductList {
-  repeated ProductResponse products = 1;
-}
-
-message UpdateProductDto {
-  string id = 1;
-  string name = 2;
-  double price = 3;
-  int32 stock = 4;
-  string description = 5;
-}
-
-
+// ------------------ EMPTY ----------------------
 message Empty {}
