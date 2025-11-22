@@ -15,16 +15,6 @@ export class ProductRepository {
     // CREATE
     async create(data: CreateProductDto): Promise<any> {
         const product = new this.productModel(data);
-        console.log("---- REPO DEBUG START ----");
-
-        console.log("product:", product);
-        console.log("typeof product.save:", typeof product.save);
-        console.log("product.save:", product.save);
-
-        const saved = await product.save();
-
-        console.log("saved:", saved);
-        console.log("---- REPO DEBUG END ----");
         return await product.save();
 
     }

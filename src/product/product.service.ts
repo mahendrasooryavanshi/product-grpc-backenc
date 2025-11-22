@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProductRepository } from './repository/product.repository';
 import { CreateProductDto } from './dto/create-product.dto';
-import { success } from 'src/common/response.helper';
+import { success, fail } from 'src/common/response.helper';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { MongoProduct } from 'src/common/interfaces/productList.interface';
 
@@ -23,7 +23,13 @@ export class ProductService {
     this.logger.debug(`GetProduct | ID: ${id}`);
 
     const p = await this.repo.findById(id) as MongoProduct;
-    if (!p) return fail('Product not found');
+    if (!p) {
+      return {
+        success: false,
+        message: 'Product not found',
+        data: {},  // ❗NOT null
+      };
+    }
 
     return success({
       id: p._id.toString(),   // 👉 yahi se ID milegi
@@ -62,15 +68,24 @@ export class ProductService {
     this.logger.debug(`ReduceStock | ID: ${productId} | Qty: ${qty}`);
 
     const product = await this.repo.findById(productId);
-    if (!product) return fail('Product not found');
+    if (!product) {
+      return { success: false, message: 'Product not found', data: null };
+    }
 
-    if (product.stock < qty) return fail('Insufficient stock');
+    if (product.stock < qty) {
+      return { success: false, message: 'Insufficient stock', data: null };
+    }
 
     const updatedStock = product.stock - qty;
     await this.repo.update(productId, { stock: updatedStock });
 
-    return success(true, 'Stock reduced successfully');
+    return {
+      success: true,
+      message: 'Stock reduced successfully',
+      data: { id: productId, stock: updatedStock },
+    };
   }
+
 
   // ------------------ UPDATE PRODUCT ------------------
   async updateProduct(id: string, dto: UpdateProductDto) {
@@ -95,6 +110,8 @@ export class ProductService {
 
     return success(true, 'Product deleted successfully');
   }
+
+
 }
 
 
